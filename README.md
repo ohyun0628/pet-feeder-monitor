@@ -66,6 +66,7 @@ pet-feeder-monitor/
 ├── monitor.py             # 측정, 경고, MQTT 발행, 급식 기록
 ├── mos.conf               # Mosquitto (1883 + 웹소켓 9001)
 ├── requirements.txt
+├── docs/img/              # README 스크린샷
 ├── static/
 │   └── mqttio.js          # 브라우저 MQTT 접속
 └── templates/
@@ -114,6 +115,10 @@ python3 app.py
 ---
 
 ## 실행 결과 (시연 시나리오)
+
+![대시보드](docs/img/dashboard.png)
+
+![급식 히스토리와 잔량 그래프](docs/img/dashboard-history.png)
 
 1. Mosquitto → `monitor.py` → `app.py` 순으로 실행한다.
 2. 브라우저에서 대시보드를 열고 상단이 **연결됨**인지 확인한다.
