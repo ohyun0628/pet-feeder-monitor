@@ -1,0 +1,9 @@
+calib.json
+feed_log.json
+static/photos/
+__pycache__/
+*.pyc
+myenv/
+files.zip
+.venv/
+venv/

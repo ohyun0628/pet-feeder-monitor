@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>강아지 사료 모니터</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.2/mqttws31.min.js"></script>
+<script src="./static/mqttio.js"></script>
+<style>
+:root{--bg:#EDF1F3;--panel:#F8FAFB;--ink:#1E2B33;--sub:#5B6B75;--line:#CBD5DA;--kibble:#C28A3E;--ok:#2F7D6D;--warn:#C4463A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;line-height:1.5}
+.wrap{max-width:960px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+h1{font-size:22px;margin:0}
+#conn{font-size:14px;color:var(--sub)}
+#conn::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--warn);margin-right:6px}
+#conn.on::before{background:var(--ok)}
+#alert{display:none;background:var(--warn);color:#fff;padding:10px 14px;border-radius:8px;margin-bottom:14px;font-weight:600}
+.top{display:flex;flex-wrap:wrap;gap:28px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.jarbox{display:flex;align-items:center;gap:18px}
+.jar{width:130px;height:195px}
+#fill{transition:y .6s,height .6s}
+#pct{font-size:64px;font-weight:800;line-height:1}
+#pct small{font-size:26px;font-weight:600;color:var(--sub)}
+.cap{color:var(--sub);font-size:14px;margin-top:4px}
+dl{margin:0;flex:1;min-width:240px;display:grid;grid-template-columns:auto 1fr;gap:8px 18px}
+dt{color:var(--sub)} dd{margin:0;font-weight:600;text-align:right}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--ink);background:var(--panel);color:var(--ink);cursor:pointer}
+button.main{background:var(--ink);color:#fff}
+button:focus-visible{outline:3px solid var(--kibble);outline-offset:2px}
+details{margin-bottom:14px;color:var(--sub);font-size:14px}
+details button{margin:8px 8px 0 0}
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.bottom{grid-template-columns:1fr}.jarbox{width:100%}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+h2{font-size:16px;margin:0 0 10px}
+canvas{width:100%;height:180px;display:block}
+ul{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto}
+li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+li img{width:64px;height:48px;object-fit:cover;border-radius:6px;background:var(--line)}
+.empty{color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>강아지 사료 모니터</h1><span id="conn">연결 중</span></header>
+  <div id="alert"></div>
+
+  <div class="top">
+    <div class="jarbox">
+      <svg class="jar" viewBox="0 0 160 240" role="img" aria-label="사료통 잔량">
+        <defs><clipPath id="inside"><rect x="20" y="40" width="120" height="180" rx="14"/></clipPath></defs>
+        <rect id="fill" x="20" y="220" width="120" height="0" fill="var(--kibble)" clip-path="url(#inside)"/>
+        <line x1="20" x2="140" y1="184" y2="184" stroke="var(--warn)" stroke-dasharray="5 4" stroke-width="2"/>
+        <rect x="20" y="40" width="120" height="180" rx="14" fill="none" stroke="var(--ink)" stroke-width="3"/>
+        <rect x="12" y="24" width="136" height="16" rx="6" fill="var(--ink)"/>
+      </svg>
+      <div>
+        <div id="pct">--<small>%</small></div>
+        <div class="cap">남은 사료 (점선: 경고 기준 20%)</div>
+      </div>
+    </div>
+    <dl>
+      <dt>예상 소진</dt><dd id="eta">--</dd>
+      <dt>온도 / 습도</dt><dd id="env">--</dd>
+      <dt>주변 밝기</dt><dd id="light">--</dd>
+      <dt>센서~사료 거리</dt><dd id="dist">--</dd>
+      <dt>경고 LED</dt><dd id="led">--</dd>
+    </dl>
+  </div>
+
+  <div class="ctrl">
+    <button class="main" onclick="mqttSend('pet/cmd','feed')">급식 기록하기 (사진 촬영)</button>
+    <button onclick="mqttSend('pet/led','0')">경고 LED 끄기</button>
+    <button onclick="mqttSend('pet/led','1')">경고 LED 켜기</button>
+  </div>
+  <details>
+    <summary>사료량 보정</summary>
+    <button onclick="mqttSend('pet/cmd','calib_full')">지금 상태를 가득 참(100%)으로</button>
+    <button onclick="mqttSend('pet/cmd','calib_empty')">지금 상태를 빈 통(0%)으로</button>
+  </details>
+
+  <div class="bottom">
+    <section><h2>잔량 변화</h2><canvas id="chart"></canvas></section>
+    <section><h2>급식 기록</h2><ul id="feeds"><li class="empty">아직 기록이 없어요. 버튼을 눌러 급식을 기록하세요.</li></ul></section>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const hist = [];
+let feeds = [];
+
+function fmtEta(m) {
+  if (m == null) return "측정 중";
+  if (m < 60) return "약 " + Math.round(m) + "분 후";
+  if (m < 1440) return "약 " + (m / 60).toFixed(1) + "시간 후";
+  return "약 " + (m / 1440).toFixed(1) + "일 후";
+}
+
+function render(s) {
+  const lv = s.level;
+  $("pct").innerHTML = Math.round(lv) + "<small>%</small>";
+  const h = 180 * lv / 100;
+  $("fill").setAttribute("y", 220 - h);
+  $("fill").setAttribute("height", h);
+  $("eta").textContent = fmtEta(s.eta_min);
+  $("env").textContent = (s.temp ?? "--") + "°C / " + (s.hum ?? "--") + "%";
+  $("light").textContent = (s.night ? "밤 " : "낮 ") + "(" + s.light + ")";
+  $("dist").textContent = s.dist == null ? "--" : s.dist + " cm";
+  $("led").textContent = s.led ? "켜짐" : "꺼짐";
+  const a = $("alert");
+  a.style.display = s.alerts.length ? "block" : "none";
+  a.textContent = s.alerts.join(" / ");
+  hist.push(lv);
+  if (hist.length > 60) hist.shift();
+  drawChart();
+}
+
+function drawChart() {
+  const c = $("chart"), dpr = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+  const g = c.getContext("2d"); g.scale(dpr, dpr);
+  const w = c.clientWidth, h = c.clientHeight, y = (v) => h - 8 - (h - 16) * v / 100;
+  g.strokeStyle = "#CBD5DA"; g.lineWidth = 1;
+  [0, 50, 100].forEach(v => { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(w, y(v)); g.stroke(); });
+  g.strokeStyle = "#C4463A"; g.setLineDash([5, 4]);
+  g.beginPath(); g.moveTo(0, y(20)); g.lineTo(w, y(20)); g.stroke(); g.setLineDash([]);
+  if (hist.length < 2) return;
+  g.strokeStyle = "#C28A3E"; g.lineWidth = 3; g.beginPath();
+  hist.forEach((v, i) => { const x = w * i / 59; i ? g.lineTo(x, y(v)) : g.moveTo(x, y(v)); });
+  g.stroke();
+}
+
+function renderFeeds() {
+  const ul = $("feeds");
+  if (!feeds.length) return;
+  ul.innerHTML = "";
+  feeds.forEach(f => {
+    const li = document.createElement("li");
+    li.innerHTML = (f.photo ? '<img src="static/' + f.photo + '" alt="급식 사진">' : '<img alt="">') +
+      "<div><b>" + f.time + "</b><br>남은 사료 " + f.level + "%</div>";
+    ul.appendChild(li);
+  });
+}
+
+function onMsg(topic, payload) {
+  const d = JSON.parse(payload);
+  if (topic === "pet/status") render(d);
+  else if (topic === "pet/feed") { feeds.unshift(d); renderFeeds(); }
+}
+
+window.addEventListener("load", () => {
+  fetch("/api/feeds").then(r => r.json()).then(list => { feeds = list; renderFeeds(); });
+  mqttConnect(onMsg, (ok) => { $("conn").textContent = ok ? "연결됨" : "연결 끊김, 다시 연결 중"; $("conn").className = ok ? "on" : ""; });
+});
+window.addEventListener("resize", drawChart);
+</script>
+</body>
+</html>

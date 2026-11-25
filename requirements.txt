@@ -1,0 +1,7 @@
+flask
+paho-mqtt
+adafruit-circuitpython-htu21d
+adafruit-circuitpython-mcp3xxx
+opencv-python
+RPi.GPIO
+adafruit-blinka
