@@ -55,6 +55,8 @@
 
 초음파는 **사료통 위쪽에 달고 바닥(사료 표면)을 내려다보게** 설치합니다. 가득 차면 거리가 짧고, 비면 거리가 깁니다.
 
+![하드웨어](docs/img/hardware.jpg)
+
 ---
 
 ## 디렉토리 구조
@@ -119,6 +121,8 @@ python3 app.py
 ![대시보드](docs/img/dashboard.png)
 
 ![급식 히스토리와 잔량 그래프](docs/img/dashboard-history.png)
+
+시연 영상: [https://www.youtube.com/shorts/z_jKLKOuF-s](https://www.youtube.com/shorts/z_jKLKOuF-s)
 
 1. Mosquitto → `monitor.py` → `app.py` 순으로 실행한다.
 2. 브라우저에서 대시보드를 열고 상단이 **연결됨**인지 확인한다.
